@@ -13,75 +13,61 @@ import java.io.*;
  */
 public interface DbFile {
     /**
-     * Read the specified page from disk.
-     *
-     * @throws IllegalArgumentException if the page does not exist in this file.
+     * 通过pageId,读取磁盘里面的数据，每次读取一个page
      */
     public Page readPage(PageId id);
 
+
     /**
-     * Push the specified page to disk.
-     *
-     * @param p The page to write.  page.getId().pageno() specifies the offset into the file where the page should be written.
-     * @throws IOException if the write fails
-     *
+     * 将 一个page 的内容写入到磁盘
+     * @param p
+     * @throws IOException
      */
     public void writePage(Page p) throws IOException;
 
+
     /**
-     * Inserts the specified tuple to the file on behalf of transaction.
-     * This method will acquire a lock on the affected pages of the file, and
-     * may block until the lock can be acquired.
-     *
-     * @param tid The transaction performing the update
-     * @param t The tuple to add.  This tuple should be updated to reflect that
-     *          it is now stored in this file.
-     * @return An ArrayList contain the pages that were modified
-     * @throws DbException if the tuple cannot be added
-     * @throws IOException if the needed file can't be read/written
+     * 通过事务将一个tuple 插入到 db file 里面，这个是需要获取一个lock，来讲进行报货并发的错误
+     * @param tid
+     * @param t
+     * @return
+     * @throws DbException
+     * @throws IOException
+     * @throws TransactionAbortedException
      */
     public ArrayList<Page> insertTuple(TransactionId tid, Tuple t)
         throws DbException, IOException, TransactionAbortedException;
 
     /**
-     * Removes the specifed tuple from the file on behalf of the specified
-     * transaction.
-     * This method will acquire a lock on the affected pages of the file, and
-     * may block until the lock can be acquired.
-     *
-     * @throws DbException if the tuple cannot be deleted or is not a member
-     *   of the file
+     * 删除指定tuple,在一个事务里面，同理也需要获取一个lock
+     * @param tid
+     * @param t
+     * @return
+     * @throws DbException
+     * @throws TransactionAbortedException
      */
     public Page deleteTuple(TransactionId tid, Tuple t)
         throws DbException, TransactionAbortedException;
 
     /**
-     * Returns an iterator over all the tuples stored in this DbFile. The
-     * iterator must use {@link BufferPool#getPage}, rather than
-     * {@link #readPage} to iterate through the pages.
-     *
-     * @return an iterator over all the tuples stored in this DbFile.
+     * 获取一个 iterator,在获取数据的db file 里面，都是通过buffer pool,来获取，
+     * buffer pool 则是通过 iterator 来一个一个tuple 进行的获取，所以返回的是一个iterator
+     * @param tid
+     * @return
      */
     public DbFileIterator iterator(TransactionId tid);
 
+
+
     /**
-     * Returns a unique ID used to identify this DbFile in the Catalog. This id
-     * can be used to look up the table via {@link Catalog#getDatabaseFile} and
-     * {@link Catalog#getTupleDesc}.
-     * <p>
-     * Implementation note:  you will need to generate this tableid somewhere,
-     * ensure that each HeapFile has a "unique id," and that you always
-     * return the same value for a particular HeapFile. A simple implementation
-     * is to use the hash code of the absolute path of the file underlying
-     * the HeapFile, i.e. <code>f.getAbsoluteFile().hashCode()</code>.
-     *
-     * @return an ID uniquely identifying this HeapFile.
+     * 返回 db file 的id,这个id与 catalog 进行，管理这个到后面会进行实现，先明白他是一个唯一表示服务就行
+     * @return
      */
     public int getId();
-    
+
     /**
-     * Returns the TupleDesc of the table stored in this DbFile.
-     * @return TupleDesc of this DbFile.
+     * 返回这个db file 的一个描述信息，即是数据库的字段描述
+     * @return
      */
     public TupleDesc getTupleDesc();
 }

@@ -4,26 +4,20 @@ package simpledb;
 import java.io.*;
 import java.util.*;
 
+
 /**
- * HeapFile is an implementation of a DbFile that stores a collection of tuples
- * in no particular order. Tuples are stored on pages, each of which is a fixed
- * size, and the file is simply a collection of those pages. HeapFile works
- * closely with HeapPage. The format of HeapPages is described in the HeapPage
- * constructor.
- * 
- * @see simpledb.HeapPage#HeapPage
- * @author Sam Madden
+ * heap 实现的Db File
  */
 public class HeapFile implements DbFile {
 
     private final File dbFile;
     private final TupleDesc tupleDesc;
+
     /**
-     * Constructs a heap file backed by the specified file.
-     * 
+     * construction
+     *
      * @param f
-     *            the file that stores the on-disk backing store for this heap
-     *            file.
+     * @param td
      */
     public HeapFile(File f, TupleDesc td) {
         // some code goes here
@@ -31,44 +25,48 @@ public class HeapFile implements DbFile {
         this.tupleDesc = td;
     }
 
+
     /**
-     * Returns the File backing this HeapFile on disk.
-     * 
-     * @return the File backing this HeapFile on disk.
+     * 返回 heap file
+     *
+     * @return
      */
     public File getFile() {
-        // some code goes here
+
         return dbFile;
     }
 
+
     /**
-     * Returns an ID uniquely identifying this HeapFile. Implementation note:
-     * you will need to generate this tableid somewhere ensure that each
-     * HeapFile has a "unique id," and that you always return the same value for
-     * a particular HeapFile. We suggest hashing the absolute file name of the
-     * file underlying the heapfile, i.e. f.getAbsoluteFile().hashCode().
-     * 
-     * @return an ID uniquely identifying this HeapFile.
+     * 返回一个id,每次都返回同样的一个 id,这里简单一点直接返回绝对路径的 hash code
+     *
+     * @return
      */
     public int getId() {
-        // some code goes here
-        // generate unique tableid
         return dbFile.getAbsoluteFile().hashCode();
     }
 
     /**
-     * Returns the TupleDesc of the table stored in this DbFile.
-     * 
-     * @return TupleDesc of this DbFile.
+     * 返回描述符
+     *
+     * @return
      */
     public TupleDesc getTupleDesc() {
-        // some code goes here
         return tupleDesc;
     }
 
-    // see DbFile.java for javadocs
+    /**
+     * 读取db file 里面的一页数据
+     * pageId，里面获取 读取第几页pageNo
+     * 通过buffer pool 获得 每一页的大小 pageSize
+     * 读取 pageNo * pageSize 之后的数据，因为我们是分页读取的，所以需要skip 掉
+     * pageNo * pageSize
+     *
+     * @param pid
+     * @return
+     */
     public Page readPage(PageId pid) {
-        // some code goes here
+
         int tableid = pid.getTableId();
         int pgNo = pid.pageNumber();
         final int pageSize = Database.getBufferPool().getPageSize();
@@ -93,12 +91,14 @@ public class HeapFile implements DbFile {
 
     }
 
-    // see DbFile.java for javadocs
+    /**
+     * 这里和读取类似，需要做一个分页处理，写在特定的位置上面
+     *
+     * @param page
+     * @throws IOException
+     */
     public void writePage(Page page) throws IOException {
-        // some code goes here
-        // not necessary for lab1
         PageId pid = page.getId();
-        int tableid = pid.getTableId();
         int pgNo = pid.pageNumber();
 
         final int pageSize = Database.getBufferPool().getPageSize();
@@ -109,8 +109,11 @@ public class HeapFile implements DbFile {
         dbfile.write(pgData);
     }
 
+
     /**
-     * Returns the number of pages in this HeapFile.
+     * 返回该文件的多少页
+     *
+     * @return
      */
     public int numPages() {
         // some code goes here
@@ -118,12 +121,22 @@ public class HeapFile implements DbFile {
         return fileSizeinByte / Database.getBufferPool().getPageSize();
     }
 
-    // see DbFile.java for javadocs
+    /**
+     * 在一个事务里面，添加一个tuple
+     * 首先我们去 buffer pool 里面寻找一个page ,如果找不到
+     * page 我们就新建一个page
+     * 然后在page里面插入 tuple
+     * 如果我们的page 还么有溢出那么就需要记录起来，通过list 记录起来，等待后面进行flush 刷新
+     * 如果超过我们现在buffer 了，则直接进行append，到file 里面
+     *
+     * @return
+     * @throws DbException
+     * @throws IOException
+     * @throws TransactionAbortedException
+     */
     public ArrayList<Page> insertTuple(TransactionId tid, Tuple t)
             throws DbException, IOException, TransactionAbortedException {
-        // some code goes here
-        // not necessary for lab1
-        ArrayList<Page> affected = new ArrayList<>(1);
+        ArrayList<Page> affected = new ArrayList(1);
         int numPages = numPages();
 
         for (int pgNo = 0; pgNo <= numPages; pgNo++) {
@@ -151,16 +164,24 @@ public class HeapFile implements DbFile {
             }
 
         }
-        // otherwise create new page and insert
         throw new DbException("HeapFile: InsertTuple: Tuple can not be added");
     }
 
-    // see DbFile.java for javadocs
+    /**
+     * 跟上插入tuple 有一定的类同
+     * 只是这里不会新建一个page,同时也需要记录更改过的page,方便后续进行flush 操作
+     *
+     * @param tid
+     * @param t
+     * @return
+     * @throws DbException
+     * @throws TransactionAbortedException
+     */
     public ArrayList<Page> deleteTuple(TransactionId tid, Tuple t) throws DbException,
             TransactionAbortedException {
         // some code goes here
         // not necessary for lab1
-        ArrayList<Page> affected = new ArrayList<>(1);
+        ArrayList<Page> affected = new ArrayList(1);
         RecordId rid = t.getRecordId();
         HeapPageId pid = (HeapPageId) rid.getPageId();
         if (pid.getTableId() == getId()) {
@@ -175,6 +196,10 @@ public class HeapFile implements DbFile {
         throw new DbException("HeapFile: deleteTuple: tuple.tableid != getId");
     }
 
+
+    /**
+     * DB File iterator 的迭代器，之前说过，db 的获取是通过 iterator 获取的
+     */
     private class HeapFileIterator implements DbFileIterator {
 
         private Integer pgCursor;
@@ -191,13 +216,11 @@ public class HeapFile implements DbFile {
             this.numPages = numPages();
         }
 
-        @Override
         public void open() throws DbException, TransactionAbortedException {
             pgCursor = 0;
             tupleIter = getTupleIter(pgCursor);
         }
 
-        @Override
         public boolean hasNext() throws DbException, TransactionAbortedException {
             // < numpage - 1
             if (pgCursor != null) {
@@ -215,21 +238,18 @@ public class HeapFile implements DbFile {
             }
         }
 
-        @Override
         public Tuple next() throws DbException, TransactionAbortedException, NoSuchElementException {
-            if (hasNext())  {
+            if (hasNext()) {
                 return tupleIter.next();
             }
             throw new NoSuchElementException("HeapFileIterator: error: next: no more elemens");
         }
 
-        @Override
         public void rewind() throws DbException, TransactionAbortedException {
             close();
             open();
         }
 
-        @Override
         public void close() {
             pgCursor = null;
             tupleIter = null;
@@ -239,16 +259,13 @@ public class HeapFile implements DbFile {
                 throws TransactionAbortedException, DbException {
             PageId pid = new HeapPageId(tableId, pgNo);
             return ((HeapPage)
-                    Database
-                            .getBufferPool()
-                            .getPage(transactionId, pid, Permissions.READ_ONLY))
-                    .iterator();
+                    Database.getBufferPool()
+                            .getPage(transactionId, pid, Permissions.READ_ONLY)).iterator();
         }
     }
 
-    // see DbFile.java for javadocs
+    //
     public DbFileIterator iterator(TransactionId tid) {
-        // some code goes here
         return new HeapFileIterator(tid);
     }
 
